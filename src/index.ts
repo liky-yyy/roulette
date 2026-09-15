@@ -2,6 +2,7 @@ import './localization';
 import { AdService } from './adService';
 import options from './options';
 import { Roulette } from './roulette';
+import { installShareReplay } from './shareReplay';
 
 // 어떤 버전이 실제로 돌고 있는지 관측한다. 옛 서비스워커에 고착된 클라이언트는
 // 이 코드가 없는 번들을 쓰므로 이벤트를 보내지 않는다. 즉 전체 pageview 대비
@@ -14,17 +15,16 @@ import { Roulette } from './roulette';
 const bundleSrc = document.querySelector<HTMLScriptElement>('script[type="module"]')?.src ?? '';
 const version = bundleSrc.match(/\.([0-9a-f]{6,})\.js/)?.[1] ?? 'dev';
 
-// umami는 defer로 로드되므로 load 시점이면 이미 준비돼 있다.
 window.addEventListener('load', () => {
   (window as any).umami?.track('version', { v: version });
 });
 
 const roulette = new Roulette();
+installShareReplay(roulette);
 
 const isLocalhost = ['localhost', '127.0.0.1'].includes(location.hostname);
 const adService = new AdService(isLocalhost ? 'http://localhost:3000' : 'https://marblerouletteshop.com');
 
-// 소재를 시작 버튼 누른 뒤에 받으면 프리롤이 로고 없이 떴다가 늦게 채워진다. 미리 받아둔다
 const preloadNextAd = () => roulette.preloadAdImages(adService.nextUrls());
 adService.onUpdate = preloadNextAd;
 adService.init();
