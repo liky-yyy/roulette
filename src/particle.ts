@@ -1,4 +1,5 @@
 import type { VectorLike } from './types/VectorLike';
+import { visualRandom } from './utils/random';
 import { rad } from './utils/utils';
 import { Vector } from './utils/Vector';
 
@@ -15,11 +16,11 @@ export class Particle {
     this.position.x = x;
     this.position.y = y;
 
-    const force = Math.random() * 250;
-    const ang = rad(90 * Math.random() - 180);
+    const force = visualRandom() * 250;
+    const ang = rad(90 * visualRandom() - 180);
     const fx = Math.cos(ang) * force;
     const fy = Math.sin(ang) * force;
-    this.color = `hsl(${Math.random() * 360} 50% 50%)`;
+    this.color = `hsl(${visualRandom() * 360} 50% 50%)`;
     this.force = { x: fx, y: fy };
   }
 

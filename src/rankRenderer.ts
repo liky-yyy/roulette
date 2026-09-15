@@ -17,6 +17,21 @@ export class RankRenderer implements UIObject {
   private winnerRange: WinnerRange = { start: 0, end: 0 };
   private messageHandler?: (msg: string) => void;
 
+  sync(winners: Marble[], marbles: Marble[], winnerRange: WinnerRange) {
+    this.winners = winners;
+    this.marbles = marbles;
+    this.winnerRange = winnerRange;
+    this._currentWinner = winners.length;
+    this.maxY = (marbles.length + winners.length + 1) * this.fontHeight;
+  }
+
+  reset() {
+    this._currentY = 0;
+    this._targetY = 0;
+    this._userMoved = 0;
+    this._currentWinner = 0;
+  }
+
   @bound
   onWheel(e: WheelEvent) {
     this._targetY += e.deltaY;
@@ -66,12 +81,7 @@ export class RankRenderer implements UIObject {
   ) {
     const startX = width - 5;
     const startY = Math.max(-this.fontHeight, this._currentY - height / 2);
-    this.maxY = Math.max(0, (marbles.length + winners.length) * this.fontHeight + this.fontHeight);
-    this._currentWinner = winners.length;
-
-    this.winners = winners;
-    this.marbles = marbles;
-    this.winnerRange = winnerRange;
+    this.sync(winners, marbles, winnerRange);
 
     ctx.save();
     ctx.textAlign = 'right';
