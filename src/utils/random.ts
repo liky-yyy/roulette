@@ -1,5 +1,6 @@
 let state = 0x6d2b79f5;
 let activeSeed = 'default';
+const nativeRandom = Math.random.bind(Math);
 
 function hashSeed(seed: string): number {
   let h = 2166136261 >>> 0;
@@ -19,7 +20,7 @@ export function getRandomSeed() {
   return activeSeed;
 }
 
-/** Mulberry32: small deterministic PRNG, returns [0, 1). */
+/** Mulberry32: deterministic PRNG, returns [0, 1). */
 export function random(): number {
   state = (state + 0x6d2b79f5) >>> 0;
   let t = state;
@@ -28,11 +29,23 @@ export function random(): number {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
+/**
+ * The original project uses Math.random in physics, skills and effects.
+ * Installing the seeded stream here makes those calls reproducible too.
+ */
+export function installSeededMathRandom() {
+  Math.random = random;
+}
+
+export function restoreNativeMathRandom() {
+  Math.random = nativeRandom;
+}
+
 export function createSeed(): string {
   if (globalThis.crypto?.getRandomValues) {
     const values = new Uint32Array(2);
     globalThis.crypto.getRandomValues(values);
     return `${values[0].toString(36)}${values[1].toString(36)}`;
   }
-  return `${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffffff).toString(36)}`;
+  return `${Date.now().toString(36)}-${Math.floor(nativeRandom() * 0xffffffff).toString(36)}`;
 }
