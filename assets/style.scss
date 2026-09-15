@@ -1,11 +1,3 @@
-:root {
-  --copyright-color: white;
-}
-
-:root.light {
-  --copyright-color: black;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -33,22 +25,6 @@ canvas {
   user-select: none;
 }
 
-div.copyright {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  color: var(--copyright-color);
-  font-size: 12px;
-  z-index: 999;
-  width: 90%;
-  text-align: center;
-}
-
-div.copyright a {
-  color: var(--copyright-color);
-}
-
 .icon {
   background: currentColor;
   mask-repeat: no-repeat;
@@ -67,10 +43,6 @@ div.copyright a {
     mask-image: url('images/shuffle.svg');
   }
 
-  &.megaphone {
-    mask-image: url('images/megaphone.svg');
-  }
-
   &.record {
     mask-image: url('images/record.svg');
   }
@@ -81,10 +53,6 @@ div.copyright a {
 
   &.trophy {
     mask-image: url('images/trophy.svg');
-  }
-
-  &.bomb {
-    mask-image: url('images/bomb.svg');
   }
 
   &.sun {
@@ -153,27 +121,6 @@ div.copyright a {
       background: rgba(0, 0, 0, 0.5);
     }
 
-    &#btnShop {
-      height: 35px;
-
-      img {
-        width: 25px;
-        height: 25px;
-      }
-    }
-
-    &.new::before {
-      position: absolute;
-      background: #AA0000;
-      color: white;
-      content: 'NEW';
-      font-size: 9px;
-      padding: 2px 4px;
-      right: -10px;
-      top: -4px;
-      border-radius: 6px;
-      z-index: 1;
-    }
   }
 
   div.theme {

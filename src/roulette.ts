@@ -151,6 +151,7 @@ export class Roulette extends EventTarget {
 
   private _updateMarbles(deltaTime: number, timeScale: number) {
     if (!this._stage) return;
+    const stage = this._stage;
 
     for (let i = 0; i < this._marbles.length; i++) {
       const marble = this._marbles[i];
@@ -159,7 +160,7 @@ export class Roulette extends EventTarget {
         this._effects.push(new SkillEffect(marble.x, marble.y));
         this.physics.impact(marble.id);
       }
-      if (marble.y > this._stage.goalY) {
+      if (marble.y > stage.goalY) {
         this._winners.push(marble);
         if (this._isRunning && this._isWinningRank(this._winners.length - 1)) {
           this._particleManager.shot(this._renderer.width, this._renderer.height);
@@ -174,10 +175,10 @@ export class Roulette extends EventTarget {
 
     const targetIndex = this._targetIndex;
     const topY = this._marbles[targetIndex] ? this._marbles[targetIndex].y : 0;
-    this._goalDist = Math.abs(this._stage.zoomY - topY);
+    this._goalDist = Math.abs(stage.zoomY - topY);
     this._timeScale = this._calcTimeScale();
 
-    this._marbles = this._marbles.filter((marble) => marble.y <= this._stage?.goalY);
+    this._marbles = this._marbles.filter((marble) => marble.y <= stage.goalY);
 
     this._checkFinish();
   }
