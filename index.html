@@ -209,7 +209,7 @@
     document.querySelector('#in_rangeStart').addEventListener('change', () => selectWinnerType('multi', 'start'));
     document.querySelector('#in_rangeEnd').addEventListener('change', () => selectWinnerType('multi', 'end'));
 
-    window.roulette.addEventListener('goal', () => {
+    window.roulette.addEventListener('rankingcomplete', () => {
       ready = false;
       setTimeout(() => {
         document.querySelector('#settings').classList.remove('hide');

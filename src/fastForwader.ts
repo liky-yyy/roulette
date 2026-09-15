@@ -22,6 +22,10 @@ export class FastForwader implements UIObject {
     return this.isEnabled ? 2 : 1;
   }
 
+  reset() {
+    this.isEnabled = false;
+  }
+
   update(_deltaTime: number): void {}
 
   render(ctx: CanvasRenderingContext2D, _params: RenderParameters, width: number, height: number): void {

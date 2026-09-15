@@ -38,6 +38,12 @@ export class Minimap implements UIObject {
     this._onViewportChangeHandler = callback;
   }
 
+  reset() {
+    this.mousePosition = null;
+    this.lastParams = null;
+    this._onViewportChangeHandler?.();
+  }
+
   update(): void {
     // nothing to do
   }

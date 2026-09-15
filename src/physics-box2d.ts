@@ -2,6 +2,7 @@ import Box2DFactory from 'box2d-wasm';
 import type { StageDef } from './data/maps';
 import type { IPhysics } from './IPhysics';
 import type { MapEntity, MapEntityState } from './types/MapEntity.type';
+import { random } from './utils/random';
 
 export class Box2dPhysics implements IPhysics {
   private Box2D!: typeof Box2D & EmscriptenModule;
@@ -21,7 +22,11 @@ export class Box2dPhysics implements IPhysics {
   }
 
   clear(): void {
-    this.clearEntities();
+    this.Box2D.destroy(this.world);
+    this.world = new this.Box2D.b2World(this.gravity);
+    this.marbleMap = {};
+    this.entities = [];
+    this.deleteCandidates = [];
   }
 
   clearMarbles(): void {
@@ -109,7 +114,7 @@ export class Box2dPhysics implements IPhysics {
     bodyDef.set_position(new this.Box2D.b2Vec2(x, y));
 
     const body = this.world.CreateBody(bodyDef);
-    body.CreateFixture(circleShape, 1 + Math.random());
+    body.CreateFixture(circleShape, 1 + random());
     body.SetAwake(false);
     body.SetEnabled(false);
     this.marbleMap[id] = body;
@@ -118,7 +123,7 @@ export class Box2dPhysics implements IPhysics {
   shakeMarble(id: number): void {
     const body = this.marbleMap[id];
     if (body) {
-      body.ApplyLinearImpulseToCenter(new this.Box2D.b2Vec2(Math.random() * 10 - 5, Math.random() * 10 - 5), true);
+      body.ApplyLinearImpulseToCenter(new this.Box2D.b2Vec2(random() * 10 - 5, random() * 10 - 5), true);
     }
   }
 

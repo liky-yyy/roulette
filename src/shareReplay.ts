@@ -1,22 +1,24 @@
 import { parseResultSnapshot, type ResultSnapshot } from './resultSnapshot';
-import { createSeed, installSeededMathRandom, setRandomSeed } from './utils/random';
+import { createSeed, setRandomSeed, setVisualSeed } from './utils/random';
 
 type RouletteLike = {
   setMarbles(names: string[]): void;
   start(): void;
   getResultSnapshot(): ResultSnapshot | null;
   restoreResultSnapshot(snapshot: ResultSnapshot): void;
+  setAutoRecording(value: boolean): void;
+  setTheme(theme: 'dark' | 'light'): void;
   getCurrentMap(): { index?: number; title?: string } | null;
   addEventListener(type: string, listener: EventListenerOrEventListenerObject): void;
 };
 
 const SHARE_TTL_MS = 60 * 60 * 1000;
+const REPLAY_ENGINE = 'fixed-tick-v2';
 const initialParams = new URLSearchParams(location.search);
 let currentSeed = initialParams.get('seed') || createSeed();
 
 function resetStream(suffix: string) {
   setRandomSeed(`${currentSeed}:${suffix}`);
-  installSeededMathRandom();
 }
 
 function toast(message: string) {
@@ -67,6 +69,8 @@ function buildShareUrl(snapshot: ResultSnapshot) {
   url.searchParams.set('at', String(createdAt));
   url.searchParams.set('names', namesValue());
   url.searchParams.set('result', JSON.stringify(snapshot));
+  url.searchParams.set('engine', REPLAY_ENGINE);
+  url.searchParams.set('theme', document.querySelector<HTMLInputElement>('#chkDarkMode')?.checked ? 'dark' : 'light');
 
   const map = document.querySelector<HTMLSelectElement>('#sltMap');
   if (map?.value) url.searchParams.set('map', map.value);
@@ -100,7 +104,8 @@ function lockReplayUi() {
     });
 
   const badge = document.createElement('div');
-  badge.textContent = '저장된 전체 순위 · 재추첨 없음';
+  badge.id = 'replayStatus';
+  badge.textContent = '동일 경기 리플레이 · 고정 시점 · 1배속';
   Object.assign(badge.style, {
     position: 'fixed',
     top: '10px',
@@ -190,7 +195,9 @@ export function installShareReplay(roulette: RouletteLike) {
 
   const originalStart = roulette.start.bind(roulette);
   roulette.start = () => {
+    roulette.setMarbles(namesValue().split(',').filter(Boolean));
     resetStream('run');
+    setVisualSeed(currentSeed);
     originalStart();
   };
 
@@ -217,10 +224,23 @@ export function installShareReplay(roulette: RouletteLike) {
         lockReplayUi();
         try {
           const raw = initialParams.get('result');
-          if (!raw) throw new Error('Legacy seed-only link');
-          roulette.restoreResultSnapshot(parseResultSnapshot(raw));
+          if (!raw || initialParams.get('engine') !== REPLAY_ENGINE) throw new Error('Unsupported replay engine');
+          const expected = parseResultSnapshot(raw);
+          roulette.setAutoRecording(false);
+          roulette.setTheme(initialParams.get('theme') === 'light' ? 'light' : 'dark');
+          roulette.addEventListener('rankingcomplete', () => {
+            const actual = roulette.getResultSnapshot();
+            const matches = JSON.stringify(actual) === JSON.stringify(expected);
+            const status = document.querySelector('#replayStatus');
+            if (status) {
+              status.textContent = matches
+                ? '리플레이 완료 · 원본 전체 순위 일치 확인'
+                : '리플레이 불일치 · 이 환경에서는 동일하게 재현되지 않았습니다';
+            }
+          });
+          roulette.start();
         } catch {
-          alert('이 링크에는 유효한 전체 순위가 없습니다. 룰렛을 다시 실행한 후 새 결과 공유 URL을 생성해 주세요.');
+          alert('이전 버전 또는 유효하지 않은 리플레이 링크입니다. 새 버전에서 결과 공유 URL을 다시 생성해 주세요.');
           const cleanUrl = new URL(location.href);
           cleanUrl.search = '';
           const link = document.createElement('a');
@@ -267,7 +287,7 @@ export function installShareReplay(roulette: RouletteLike) {
 
       roulette.addEventListener('rankingcomplete', () => {
         share.disabled = false;
-        share.title = '확정된 전체 순위를 그대로 공유';
+        share.title = '동일한 경기 과정과 전체 순위를 공유';
       });
     };
     wait();

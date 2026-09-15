@@ -99,24 +99,24 @@ export class RouletteRenderer {
 
     document.body.appendChild(this._canvas);
 
-    const resizing = (entries?: ResizeObserverEntry[]) => {
-      const realSize = entries ? entries[0].contentRect : this._canvas.getBoundingClientRect();
-      if (realSize.width <= 0 || realSize.height <= 0) return;
+    const resizing = () => {
+      const aspect = canvasWidth / canvasHeight;
+      const cssWidth = Math.min(window.innerWidth, window.innerHeight * aspect);
+      if (cssWidth <= 0) return;
 
-      const width = Math.max(realSize.width / 2, 640);
-      const height = (width / realSize.width) * realSize.height;
-      this._sceneCanvas.width = width;
-      this._sceneCanvas.height = height;
-      this.sizeFactor = width / realSize.width;
+      // 모든 기기에서 같은 논리 화면을 렌더하고 남는 영역은 레터박스로 둔다.
+      this._sceneCanvas.width = canvasWidth / 2;
+      this._sceneCanvas.height = canvasHeight / 2;
+      this.sizeFactor = this._sceneCanvas.width / cssWidth;
+      this._canvas.style.width = `${cssWidth}px`;
+      this._canvas.style.height = `${cssWidth / aspect}px`;
+      this._canvas.style.margin = 'auto';
 
-      const displayWidth = Math.min(realSize.width, MAX_DISPLAY_WIDTH);
+      const displayWidth = Math.min(cssWidth, MAX_DISPLAY_WIDTH);
       this._canvas.width = displayWidth;
-      this._canvas.height = (displayWidth / realSize.width) * realSize.height;
+      this._canvas.height = displayWidth / aspect;
     };
-
-    const resizeObserver = new ResizeObserver(resizing);
-
-    resizeObserver.observe(this._canvas);
+    window.addEventListener('resize', resizing);
     resizing();
   }
 

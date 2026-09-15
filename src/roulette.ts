@@ -55,9 +55,8 @@ export class Roulette extends EventTarget {
   private _rankingComplete = false;
   private _roundStarted = false;
 
-  // 구슬 id(= order)는 매 라운드 재사용된다. 리셋 시 취소하지 않으면 이 타이머가
-  // 뒤늦게 발화해 같은 id를 가진 새 라운드의 구슬을 지워버린다
-  private _pendingRemovals: number[] = [];
+  // 실제 setTimeout은 브라우저/탭 상태에 따라 실행 시점이 달라진다. 물리 틱으로 제거 시점을 관리한다.
+  private _pendingRemovals: { id: number; ticks: number }[] = [];
 
   private _uiObjects: UIObject[] = [];
 
@@ -114,42 +113,45 @@ export class Roulette extends EventTarget {
   private _update() {
     if (!this._lastTime) this._lastTime = Date.now();
     const currentTime = Date.now();
-
-    this._elapsed += (currentTime - this._lastTime) * this._speed * this.fastForwarder.speed;
-    if (this._elapsed > 100) {
-      this._elapsed %= 100;
-    }
+    this._advance(Math.min(250, Math.max(0, currentTime - this._lastTime)));
     this._lastTime = currentTime;
-
-    // _timeScale 은 _updateMarbles 에서 갱신되지만 물리 스텝 크기는 이 프레임 시작값으로 고정된다.
-    // 구슬 정지 판정도 같은 값을 써야 실제 진행된 물리 시간과 맞는다
-    const timeScale = this._timeScale;
-    const interval = (this._updateInterval / 1000) * timeScale;
-
-    while (this._elapsed >= this._updateInterval) {
-      this.physics.step(interval);
-      this._updateMarbles(this._updateInterval, timeScale);
-      this._particleManager.update(this._updateInterval);
-      this._updateEffects(this._updateInterval);
-      this._elapsed -= this._updateInterval;
-      this._uiObjects.forEach((obj) => obj.update(this._updateInterval));
-    }
-
-    if (this._marbles.length > 1) {
-      this._marbles.sort((a, b) => b.y - a.y);
-    }
-
-    if (this._stage) {
-      this._camera.update({
-        marbles: this._marbles,
-        stage: this._stage,
-        needToZoom: this._goalDist < zoomThreshold,
-        targetIndex: this._winners.length > 0 ? this._targetIndex : 0,
-      });
-    }
 
     this._render();
     window.requestAnimationFrame(this._update);
+  }
+
+  /** 프레임은 고정 틱을 예약할 뿐이다. 경기 상태는 렌더 프레임 횟수에 의존하지 않는다. */
+  private _advance(milliseconds: number) {
+    this._elapsed += milliseconds;
+    while (this._elapsed >= this._updateInterval) {
+      if (this._roundStarted && !this._rankingComplete) {
+        this._pendingRemovals = this._pendingRemovals.filter((pending) => {
+          pending.ticks--;
+          if (pending.ticks > 0) return true;
+          this.physics.removeMarble(pending.id);
+          return false;
+        });
+        const timeScale = this._timeScale;
+        this.physics.step((this._updateInterval / 1000) * timeScale);
+        this._marbles.sort((a, b) => b.y - a.y || a.id - b.id);
+        this._updateMarbles(this._updateInterval, timeScale);
+      }
+      this._particleManager.update(this._updateInterval);
+      this._updateEffects(this._updateInterval);
+      this._elapsed -= this._updateInterval;
+      this._uiObjects.forEach((obj) => {
+        if (obj instanceof RankRenderer) obj.sync(this._winners, this._marbles, this._winnerRange);
+        obj.update(this._updateInterval);
+      });
+      if (this._stage) {
+        this._camera.update({
+          marbles: this._marbles,
+          stage: this._stage,
+          needToZoom: this._goalDist < zoomThreshold,
+          targetIndex: this._winners.length > 0 ? this._targetIndex : 0,
+        });
+      }
+    }
   }
 
   private _updateMarbles(deltaTime: number, timeScale: number) {
@@ -168,20 +170,15 @@ export class Roulette extends EventTarget {
         if (this._isRunning && this._isWinningRank(this._winners.length - 1)) {
           this._particleManager.shot(this._renderer.width, this._renderer.height);
         }
-        this._pendingRemovals.push(
-          window.setTimeout(() => {
-            this.physics.removeMarble(marble.id);
-          }, 500)
-        );
+        this._pendingRemovals.push({ id: marble.id, ticks: 50 });
       }
     }
 
+    this._marbles = this._marbles.filter((marble) => marble.y <= stage.goalY);
     const targetIndex = this._targetIndex;
     const topY = this._marbles[targetIndex] ? this._marbles[targetIndex].y : 0;
     this._goalDist = Math.abs(stage.zoomY - topY);
     this._timeScale = this._calcTimeScale();
-
-    this._marbles = this._marbles.filter((marble) => marble.y <= stage.goalY);
 
     this._checkFinish();
     // A winner event can fire at first place; sharing must wait for EVERY rank.
@@ -231,7 +228,11 @@ export class Roulette extends EventTarget {
   private _calcTimeScale(): number {
     if (!this._stage) return 1;
     const targetIndex = this._targetIndex;
-    if (this._winners.length < this._winnerRange.end + 1 && this._goalDist < zoomThreshold) {
+    if (
+      this._marbles[targetIndex] &&
+      this._winners.length < this._winnerRange.end + 1 &&
+      this._goalDist < zoomThreshold
+    ) {
       if (
         this._marbles[targetIndex].y > this._stage.zoomY - zoomThreshold * 1.2 &&
         (this._marbles[targetIndex - 1] || this._marbles[targetIndex + 1])
@@ -291,6 +292,7 @@ export class Roulette extends EventTarget {
 
   @bound
   private mouseHandler(eventName: MouseEventName, e: MouseEvent) {
+    if (this._roundStarted && !this._rankingComplete) return;
     const handlerName = `on${eventName}` as MouseEventHandlerName;
 
     const sizeFactor = this._renderer.sizeFactor;
@@ -337,6 +339,7 @@ export class Roulette extends EventTarget {
     });
 
     canvas.addEventListener('click', (e) => {
+      if (this._roundStarted && !this._rankingComplete) return;
       // 광고 오버레이가 팝업 위에 그려지므로 먼저 검사한다
       const hit = this.adHitAt(e);
       if (hit) {
@@ -370,7 +373,6 @@ export class Roulette extends EventTarget {
     this._roundStarted = false;
     this._rankingComplete = false;
     this._isRunning = false;
-    this._pendingRemovals.forEach((id) => window.clearTimeout(id));
     this._pendingRemovals = [];
     this.physics.clearMarbles();
     this._result = null;
@@ -389,19 +391,33 @@ export class Roulette extends EventTarget {
 
   public start() {
     if (this._marbles.length === 0) return;
-    this._roundStarted = true;
+    this._elapsed = 0;
+    this._lastTime = Date.now();
+    this._timeScale = 1;
+    this._speed = 1;
+    this.fastForwarder.onMouseUp?.();
+    this._camera.lock(false);
     this._isRunning = true;
     this._winnerRange = clipWinnerRange(options.winnerRange, this._marbles.length);
-    this._camera.startFollowingMarbles();
 
-    if (this._autoRecording) {
-      this._recorder.start().then(() => {
-        this.physics.start();
-        this._marbles.forEach((marble) => (marble.isActive = true));
-      });
-    } else {
+    const begin = () => {
+      this._elapsed = 0;
+      this._lastTime = Date.now();
+      this._roundStarted = true;
+      this._camera.startFollowingMarbles();
       this.physics.start();
       this._marbles.forEach((marble) => (marble.isActive = true));
+    };
+    if (this._autoRecording) {
+      this._recorder
+        .start()
+        .then(begin)
+        .catch((error) => {
+          console.error('recording failed to start', error);
+          begin();
+        });
+    } else {
+      begin();
     }
   }
 
@@ -557,6 +573,11 @@ export class Roulette extends EventTarget {
     this._clearMap();
     this._loadMap();
     this._goalDist = Infinity;
+    this._timeScale = 1;
+    this._elapsed = 0;
+    this._effects = [];
+    this._particleManager = new ParticleManager();
+    this._uiObjects.forEach((obj) => obj.reset?.());
   }
 
   public getCount() {
