@@ -103,23 +103,31 @@ function lockReplayUi() {
       el.disabled = true;
     });
 
-  const badge = document.createElement('div');
-  badge.id = 'replayStatus';
-  badge.textContent = '동일 경기 리플레이 · 고정 시점 · 1배속';
-  Object.assign(badge.style, {
+  const panel = document.createElement('div');
+  panel.id = 'replayPanel';
+  const status = document.createElement('div');
+  status.id = 'replayStatus';
+  status.textContent = '동일 경기 리플레이 · 고정 시점 · 1배속';
+  panel.appendChild(status);
+  const meta = document.querySelector('#replayMeta');
+  if (meta) panel.appendChild(meta);
+  Object.assign(panel.style, {
     position: 'fixed',
     top: '10px',
     left: '50%',
     transform: 'translateX(-50%)',
     zIndex: '10000',
     padding: '8px 14px',
-    borderRadius: '999px',
+    borderRadius: '12px',
     background: 'rgba(0,0,0,.75)',
     color: '#fff',
     font: '13px sans-serif',
     pointerEvents: 'none',
+    textAlign: 'center',
+    lineHeight: '1.35',
+    whiteSpace: 'nowrap',
   });
-  document.body.appendChild(badge);
+  document.body.appendChild(panel);
 }
 
 function applyUrlSettings(): boolean {
@@ -167,22 +175,11 @@ function applyUrlSettings(): boolean {
     }
   }
 
-  const badge = document.createElement('div');
-  badge.textContent = `실행 결과 · ${formatKst(createdAt)} KST · 1시간 유효`;
-  Object.assign(badge.style, {
-    position: 'fixed',
-    top: '10px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    zIndex: '9999',
-    padding: '6px 10px',
-    borderRadius: '999px',
-    background: 'rgba(0,0,0,.65)',
-    color: '#fff',
-    font: '12px sans-serif',
-    pointerEvents: 'none',
-  });
-  document.body.appendChild(badge);
+  const meta = document.createElement('div');
+  meta.id = 'replayMeta';
+  meta.textContent = `실행 결과 · ${formatKst(createdAt)} KST · 1시간 유효`;
+  Object.assign(meta.style, { fontSize: '12px', opacity: '0.82' });
+  document.body.appendChild(meta);
   return true;
 }
 
