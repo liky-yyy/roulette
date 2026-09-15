@@ -6,7 +6,9 @@ type RouletteLike = {
   getCurrentMap(): { index?: number; title?: string } | null;
 };
 
-let currentSeed = new URLSearchParams(location.search).get('seed') || createSeed();
+const SHARE_TTL_MS = 60 * 60 * 1000;
+const initialParams = new URLSearchParams(location.search);
+let currentSeed = initialParams.get('seed') || createSeed();
 
 function resetStream(suffix: string) {
   setRandomSeed(`${currentSeed}:${suffix}`);
@@ -22,7 +24,7 @@ function toast(message: string) {
     background: 'rgba(20,20,20,.9)', color: '#fff', font: '14px sans-serif'
   });
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 1600);
+  setTimeout(() => el.remove(), 2000);
 }
 
 function namesValue() {
@@ -30,10 +32,19 @@ function namesValue() {
     .split(/[,\r\n]/g).map((v) => v.trim()).filter(Boolean).join(',');
 }
 
+function formatKst(timestamp: number) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(new Date(timestamp));
+}
+
 function buildShareUrl(roulette: RouletteLike) {
   const url = new URL(location.href);
   url.search = '';
+  const createdAt = Date.now();
   url.searchParams.set('seed', currentSeed);
+  url.searchParams.set('at', String(createdAt));
   url.searchParams.set('names', namesValue());
 
   const map = document.querySelector<HTMLSelectElement>('#sltMap');
@@ -54,12 +65,21 @@ function buildShareUrl(roulette: RouletteLike) {
   } else {
     url.searchParams.set('winner', document.querySelector<HTMLInputElement>('#in_winningRank')?.value || '1');
   }
-  return url;
+  return { url, createdAt };
 }
 
 function applyUrlSettings() {
   const params = new URLSearchParams(location.search);
   if (!params.has('seed')) return;
+
+  const createdAt = Number(params.get('at'));
+  if (!Number.isFinite(createdAt) || createdAt <= 0 || Date.now() - createdAt > SHARE_TTL_MS) {
+    alert('이 룰렛 결과 링크는 생성 후 1시간이 지나 만료되었습니다.');
+    const cleanUrl = new URL(location.href);
+    cleanUrl.search = '';
+    history.replaceState(null, '', cleanUrl);
+    return;
+  }
 
   const map = params.get('map');
   const mapSelect = document.querySelector<HTMLSelectElement>('#sltMap');
@@ -93,11 +113,11 @@ function applyUrlSettings() {
   }
 
   const badge = document.createElement('div');
-  badge.textContent = `Replay seed: ${currentSeed}`;
+  badge.textContent = `실행 결과 · ${formatKst(createdAt)} KST · 1시간 유효`;
   Object.assign(badge.style, {
     position: 'fixed', top: '10px', left: '50%', transform: 'translateX(-50%)',
     zIndex: '9999', padding: '6px 10px', borderRadius: '999px',
-    background: 'rgba(0,0,0,.65)', color: '#fff', font: '12px monospace', pointerEvents: 'none'
+    background: 'rgba(0,0,0,.65)', color: '#fff', font: '12px sans-serif', pointerEvents: 'none'
   });
   document.body.appendChild(badge);
 }
@@ -111,7 +131,6 @@ export function installShareReplay(roulette: RouletteLike) {
 
   const originalStart = roulette.start.bind(roulette);
   roulette.start = () => {
-    // Ads or UI work between setup and start must not alter the gameplay stream.
     resetStream('run');
     originalStart();
   };
@@ -127,23 +146,22 @@ export function installShareReplay(roulette: RouletteLike) {
 
       const shuffle = document.querySelector<HTMLButtonElement>('#btnShuffle');
       shuffle?.addEventListener('click', () => {
-        // A manual shuffle intentionally creates a new shareable outcome.
         if (!new URLSearchParams(location.search).has('seed')) currentSeed = createSeed();
       }, true);
 
       const share = document.createElement('button');
       share.id = 'btnShareReplay';
       share.type = 'button';
-      share.title = '같은 과정과 결과를 공유';
+      share.title = '같은 과정과 결과를 1시간 동안 공유';
       share.innerHTML = '<span>🔗 결과 URL</span>';
       share.addEventListener('click', async () => {
-        const url = buildShareUrl(roulette);
+        const { url, createdAt } = buildShareUrl(roulette);
         history.replaceState(null, '', url);
         try {
           await navigator.clipboard.writeText(url.toString());
-          toast('동일 결과 URL을 복사했습니다');
+          toast(`결과 URL 복사 완료 · ${formatKst(createdAt)} KST · 1시간 유효`);
         } catch {
-          prompt('아래 URL을 복사하세요', url.toString());
+          prompt(`아래 URL을 복사하세요 (${formatKst(createdAt)} KST, 1시간 유효)`, url.toString());
         }
       });
       actions.insertBefore(share, document.querySelector('#btnStart'));
