@@ -4,6 +4,7 @@ type RouletteLike = {
   setMarbles(names: string[]): void;
   start(): void;
   getCurrentMap(): { index?: number; title?: string } | null;
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject): void;
 };
 
 const SHARE_TTL_MS = 60 * 60 * 1000;
@@ -19,9 +20,16 @@ function toast(message: string) {
   const el = document.createElement('div');
   el.textContent = message;
   Object.assign(el.style, {
-    position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-    zIndex: '99999', padding: '10px 16px', borderRadius: '10px',
-    background: 'rgba(20,20,20,.9)', color: '#fff', font: '14px sans-serif'
+    position: 'fixed',
+    bottom: '24px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: '99999',
+    padding: '10px 16px',
+    borderRadius: '10px',
+    background: 'rgba(20,20,20,.9)',
+    color: '#fff',
+    font: '14px sans-serif',
   });
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 2000);
@@ -29,17 +37,26 @@ function toast(message: string) {
 
 function namesValue() {
   return (document.querySelector<HTMLTextAreaElement>('#in_names')?.value || '')
-    .split(/[,\r\n]/g).map((v) => v.trim()).filter(Boolean).join(',');
+    .split(/[,\r\n]/g)
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .join(',');
 }
 
 function formatKst(timestamp: number) {
   return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
   }).format(new Date(timestamp));
 }
 
-function buildShareUrl(roulette: RouletteLike) {
+function buildShareUrl() {
   const url = new URL(location.href);
   url.search = '';
   const createdAt = Date.now();
@@ -68,22 +85,51 @@ function buildShareUrl(roulette: RouletteLike) {
   return { url, createdAt };
 }
 
-function applyUrlSettings() {
+function lockReplayUi() {
+  document.querySelector('#settings')?.classList.add('hide');
+  document
+    .querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>(
+      '#settings input, #settings select, #settings textarea, #settings button'
+    )
+    .forEach((el) => {
+      el.disabled = true;
+    });
+
+  const badge = document.createElement('div');
+  badge.textContent = '공유된 결과 재생 · 설정 변경 불가';
+  Object.assign(badge.style, {
+    position: 'fixed',
+    top: '10px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: '10000',
+    padding: '8px 14px',
+    borderRadius: '999px',
+    background: 'rgba(0,0,0,.75)',
+    color: '#fff',
+    font: '13px sans-serif',
+    pointerEvents: 'none',
+  });
+  document.body.appendChild(badge);
+}
+
+function applyUrlSettings(): boolean {
   const params = new URLSearchParams(location.search);
-  if (!params.has('seed')) return;
+  if (!params.has('seed')) return false;
 
   const createdAt = Number(params.get('at'));
-  if (!Number.isFinite(createdAt) || createdAt <= 0 || Date.now() - createdAt > SHARE_TTL_MS) {
+  const age = Date.now() - createdAt;
+  if (!Number.isFinite(createdAt) || createdAt <= 0 || age < -60_000 || age > SHARE_TTL_MS) {
     alert('이 룰렛 결과 링크는 생성 후 1시간이 지나 만료되었습니다.');
     const cleanUrl = new URL(location.href);
     cleanUrl.search = '';
     history.replaceState(null, '', cleanUrl);
-    return;
+    return false;
   }
 
   const map = params.get('map');
   const mapSelect = document.querySelector<HTMLSelectElement>('#sltMap');
-  if (map && mapSelect && [...mapSelect.options].some((o) => o.value === map)) {
+  if (map && mapSelect && Array.from(mapSelect.options).some((o) => o.value === map)) {
     mapSelect.value = map;
     mapSelect.dispatchEvent(new Event('change'));
   }
@@ -96,14 +142,14 @@ function applyUrlSettings() {
   }
 
   const winner = params.get('winner');
-  if (winner === 'first') (document.querySelector<HTMLButtonElement>('.btn-first-winner'))?.click();
-  else if (winner === 'last') (document.querySelector<HTMLButtonElement>('.btn-last-winner'))?.click();
+  if (winner === 'first') document.querySelector<HTMLButtonElement>('.btn-first-winner')?.click();
+  else if (winner === 'last') document.querySelector<HTMLButtonElement>('.btn-last-winner')?.click();
   else if (winner === 'multi') {
     const from = document.querySelector<HTMLInputElement>('#in_rangeStart');
     const to = document.querySelector<HTMLInputElement>('#in_rangeEnd');
     if (from) from.value = params.get('from') || '1';
     if (to) to.value = params.get('to') || '1';
-    (document.querySelector<HTMLButtonElement>('.btn-multi-winner'))?.click();
+    document.querySelector<HTMLButtonElement>('.btn-multi-winner')?.click();
   } else if (winner) {
     const rank = document.querySelector<HTMLInputElement>('#in_winningRank');
     if (rank) {
@@ -115,11 +161,20 @@ function applyUrlSettings() {
   const badge = document.createElement('div');
   badge.textContent = `실행 결과 · ${formatKst(createdAt)} KST · 1시간 유효`;
   Object.assign(badge.style, {
-    position: 'fixed', top: '10px', left: '50%', transform: 'translateX(-50%)',
-    zIndex: '9999', padding: '6px 10px', borderRadius: '999px',
-    background: 'rgba(0,0,0,.65)', color: '#fff', font: '12px sans-serif', pointerEvents: 'none'
+    position: 'fixed',
+    top: '10px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: '9999',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    background: 'rgba(0,0,0,.65)',
+    color: '#fff',
+    font: '12px sans-serif',
+    pointerEvents: 'none',
   });
   document.body.appendChild(badge);
+  return true;
 }
 
 export function installShareReplay(roulette: RouletteLike) {
@@ -145,17 +200,30 @@ export function installShareReplay(roulette: RouletteLike) {
       }
 
       const shuffle = document.querySelector<HTMLButtonElement>('#btnShuffle');
-      shuffle?.addEventListener('click', () => {
-        if (!new URLSearchParams(location.search).has('seed')) currentSeed = createSeed();
-      }, true);
+      shuffle?.addEventListener(
+        'click',
+        () => {
+          currentSeed = createSeed();
+        },
+        true
+      );
+
+      const replayMode = applyUrlSettings();
+      if (replayMode) {
+        lockReplayUi();
+        setTimeout(() => roulette.start(), 300);
+        return;
+      }
 
       const share = document.createElement('button');
       share.id = 'btnShareReplay';
       share.type = 'button';
       share.title = '같은 과정과 결과를 1시간 동안 공유';
       share.innerHTML = '<span>🔗 결과 URL</span>';
+      share.disabled = true;
+      share.title = '룰렛 결과가 나온 뒤 공유할 수 있습니다';
       share.addEventListener('click', async () => {
-        const { url, createdAt } = buildShareUrl(roulette);
+        const { url, createdAt } = buildShareUrl();
         history.replaceState(null, '', url);
         try {
           await navigator.clipboard.writeText(url.toString());
@@ -166,7 +234,23 @@ export function installShareReplay(roulette: RouletteLike) {
       });
       actions.insertBefore(share, document.querySelector('#btnStart'));
 
-      applyUrlSettings();
+      const invalidateShare = () => {
+        share.disabled = true;
+        share.title = '룰렛 결과가 나온 뒤 공유할 수 있습니다';
+      };
+      document.querySelector('#in_names')?.addEventListener('input', invalidateShare);
+      document.querySelector('#sltMap')?.addEventListener('change', invalidateShare);
+      document.querySelector('#in_winningRank')?.addEventListener('change', invalidateShare);
+      document.querySelector('#in_rangeStart')?.addEventListener('change', invalidateShare);
+      document.querySelector('#in_rangeEnd')?.addEventListener('change', invalidateShare);
+      document.querySelectorAll('.btn-winner, #btnShuffle, #btnStart').forEach((control) => {
+        control.addEventListener('click', invalidateShare);
+      });
+
+      roulette.addEventListener('goal', () => {
+        share.disabled = false;
+        share.title = '방금 실행한 과정과 결과 공유';
+      });
     };
     wait();
   });

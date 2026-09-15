@@ -1,12 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <script defer src="https://umami.lazygyu.net/script.js"
-          data-website-id="205aee0d-30b6-4c69-a053-0c72c8377be0"></script>
-
-  <title>Marble Roulette 마블룰렛</title>
+  <title>MOSS Roulette</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="apple-touch-icon" sizes="57x57" href="assets/apple-icon-57x57.png">
   <link rel="apple-touch-icon" sizes="60x60" href="assets/apple-icon-60x60.png">
@@ -27,11 +24,11 @@
   <meta name="msapplication-TileImage" content="assets/ms-icon-144x144.png">
   <meta name="theme-color" content="#ffffff">
 
-  <meta name="description" content="구슬을 굴려 당첨자를 뽑는 추첨기">
-  <meta property="og:url" content="https://lazygyu.github.io/roulette/">
-  <meta property="og:title" content="Marble Roulette">
-  <meta property="og:description" content="마블 룰렛 공식 사이트">
-  <meta property="og:site_name" content="lazygyu.github.io">
+  <meta name="description" content="MOSS 결과 공유 룰렛">
+  <meta property="og:url" content="https://liky-yyy.github.io/roulette/">
+  <meta property="og:title" content="MOSS Roulette">
+  <meta property="og:description" content="같은 실행 과정과 결과를 공유하는 룰렛">
+  <meta property="og:site_name" content="MOSS Roulette">
   <meta property="og:type" content="website">
 
   <link rel='stylesheet' href='assets/style.scss' />
@@ -39,15 +36,6 @@
 <body>
 <script type="module" src="./src/index.ts"></script>
 <script type="text/javascript">
-  window.dataLayer = window.dataLayer || [];
-
-  function gtag() {
-    dataLayer.push(arguments);
-  }
-
-  gtag('js', new Date());
-  gtag('config', 'G-5899C1DJM0');
-
   function getNames() {
     const value = document.querySelector('#in_names').value.trim();
     return value.split(/[,\r\n]/g).map(v => v.trim()).filter(v => !!v);
@@ -58,7 +46,7 @@
     const countRegex = /(\*\d+)/;
     const hasWeight = weightRegex.test(nameStr);
     const hasCount = countRegex.test(nameStr);
-    const name = /^\s*([^\/*]+)?/.exec(nameStr)[1];
+    const name = /^\s*([^\/*]+)?/.exec(nameStr)?.[1] || nameStr;
     const weight = hasWeight ? parseInt(weightRegex.exec(nameStr)[1].replace('/', '')) : 1;
     const count = hasCount ? parseInt(countRegex.exec(nameStr)[1].replace('*', '')) : 1;
     return {
@@ -72,7 +60,7 @@
     const names = getNames();
     window.roulette.setMarbles(names);
     ready = names.length > 0;
-    localStorage.setItem('mbr_names', names.join(','));
+    localStorage.setItem('moss_roulette_names', names.join(','));
     applyWinnerSetting();
   }
 
@@ -145,6 +133,7 @@
       return;
     }
     console.log('initializing start');
+    window.options.useSkills = false;
 
     const urlParams = new URLSearchParams(window.location.search);
     const namesFromUrl = urlParams.get('names');
@@ -152,7 +141,7 @@
     if (namesFromUrl) {
       document.querySelector('#in_names').value = namesFromUrl.replace(/,/g, '\n');
     } else {
-      const savedNames = localStorage.getItem('mbr_names');
+      const savedNames = localStorage.getItem('moss_roulette_names');
       if (savedNames) {
         document.querySelector('#in_names').value = savedNames;
       }
@@ -198,41 +187,13 @@
 
     document.querySelector('#btnStart').addEventListener('click', () => {
       if (!ready) return;
-      gtag && gtag('event', 'start', {
-        'event_category': 'roulette',
-        'event_label': 'start',
-        'value': window.roulette.getCount(),
-      });
-      const names = getNames();
-      const marbles = names.map(n => {
-        const p = parseName(n);
-        return { name: p.name, count: p.count };
-      });
-      if (typeof umami !== 'undefined') {
-        const currentMap = window.roulette.getCurrentMap();
-        umami.track('start', {
-          count: window.roulette.getCount(),
-          map: currentMap ? currentMap.title : 'unknown',
-        });
-        marbles.forEach(m => {
-          umami.track('marble', { name: m.name, count: m.count });
-        });
-      }
       document.querySelector('#settings').classList.add('hide');
-      if (window.ads) {
-        window.ads.beginRound(() => window.roulette.start());
-      } else {
-        window.roulette.start();
-      }
+      window.roulette.start();
     });
 
     document.querySelector('#chkAutoRecording').addEventListener('change', (e) => {
       window.options.autoRecording = e.target.matches(':checked');
       window.roulette.setAutoRecording(window.options.autoRecording);
-    });
-
-    document.querySelector('#chkSkill').addEventListener('change', (e) => {
-      window.options.useSkills = e.target.matches(':checked');
     });
 
     document.querySelector('#chkDarkMode').addEventListener('change', (e) => {
@@ -250,7 +211,6 @@
 
     window.roulette.addEventListener('goal', () => {
       ready = false;
-      if (window.ads) window.ads.showResult();
       setTimeout(() => {
         document.querySelector('#settings').classList.remove('hide');
       }, 3000);
@@ -281,7 +241,7 @@
       mapSelector.append(option);
     });
     mapSelector.addEventListener('change', (e) => {
-      window.roulette.setMap(e.target.value);
+      window.roulette.setMap(Number(e.target.value));
       // setMap은 살아남은 구슬에서 이름을 뽑아 재구성한다. 골인한 구슬이 사라지고
       // 무게(/n)도 날아가므로, 원본인 이름 입력창에서 다시 채운다
       getReady();
@@ -299,27 +259,6 @@
     // };
     // setTimeout(checkDonateButtonLoaded, 100);
 
-    const currentNotice = 7;
-    const noticeKey = 'lastViewedNotification';
-
-    const closeNotice = () => {
-      document.querySelector('#notice').style.display = 'none';
-      localStorage.setItem(noticeKey, currentNotice.toString());
-    };
-
-    const openNotice = () => {
-      console.log('openNotice');
-      document.querySelector('#notice').style.display = 'flex';
-    };
-
-    document.querySelector('#closeNotice').addEventListener('click', () => {
-      closeNotice();
-    });
-
-    document.querySelector('#btnNotice').addEventListener('click', () => {
-      openNotice();
-    });
-
     function simpleToast(msg) {
       const toast = document.createElement('div');
       toast.classList.add('toast');
@@ -336,18 +275,9 @@
       }, 1200);
     }
 
-    const checkNotice = () => {
-      const lastViewed = localStorage.getItem(noticeKey);
-      console.log('lastViewed', lastViewed);
-      if (lastViewed === null || Number(lastViewed) < currentNotice) {
-        openNotice();
-      }
-    };
-
-    checkNotice();
   }
 </script>
-<h1 class="sr-only">Marble Roulette™ 마블 룰렛™ - 랜덤 추첨기</h1>
+<h1 class="sr-only">MOSS Roulette</h1>
 <div id="settings" class="settings">
   <div class="right">
     <button id="btnToggleSettings" class="btn-toggle-settings">
@@ -358,7 +288,7 @@
       <div class="row">
         <label for='sltMap'>
           <i class="icon map"></i>
-          <span data-trans>Map</span>
+          <span>맵</span>
         </label>
         <select id="sltMap"></select>
       </div>
@@ -366,28 +296,21 @@
         <div class='toggle-item'>
           <label for='chkAutoRecording'>
             <i class="icon record"></i>
-            <span data-trans>Recording</span>
+            <span>녹화</span>
           </label>
           <input type="checkbox" id="chkAutoRecording" />
-        </div>
-        <div class='toggle-item'>
-          <label for='chkSkill'>
-            <i class="icon bomb"></i>
-            <span data-trans>Using skills</span>
-          </label>
-          <input type="checkbox" id="chkSkill" checked />
         </div>
       </div>
       <div class="row">
         <label>
           <i class="icon trophy"></i>
-          <span data-trans>The winner is</span>
+          <span>당첨 순위</span>
         </label>
         <div class="btn-group">
-          <button class="btn-winner btn-first-winner active" data-trans>First</button>
-          <button class="btn-winner btn-last-winner" data-trans>Last</button>
+          <button class="btn-winner btn-first-winner active">첫번째</button>
+          <button class="btn-winner btn-last-winner">마지막</button>
           <input type="number" id="in_winningRank" value="1" min="1" />
-          <button class="btn-winner btn-multi-winner" data-trans>Multiple</button>
+          <button class="btn-winner btn-multi-winner">여러명</button>
         </div>
       </div>
       <div class="row row-range">
@@ -408,41 +331,20 @@
     </div>
   </div>
   <div class="left">
-    <h3 data-trans>Enter names below</h3>
-    <textarea id="in_names" placeholder="Input names separated by commas or line feed here" data-trans="placeholder">수박*2,키위*2,귤*2</textarea>
+    <h3>참가자 이름</h3>
+    <textarea id="in_names" placeholder="쉼표 또는 줄바꿈으로 이름을 구분하세요">수박*2,키위*2,귤*2</textarea>
     <div class="actions">
-      <button id="btnNotice">
-        <i class="icon megaphone"></i>
-      </button>
-      <a href='https://marblerouletteshop.com' target='_blank' id="btnShop" class='btn new' title='MarbleRoulette Shop'>
-        <img src='assets/images/marblerouletteshop.png' />
-      </a>
       <div class="sep"></div>
       <button id="btnShuffle">
         <i class="icon shuffle"></i>
-        <span data-trans>Shuffle</span>
+        <span>섞기</span>
       </button>
       <button id="btnStart">
         <i class="icon play"></i>
-        <span data-trans>Start</span>
+        <span>시작</span>
       </button>
     </div>
   </div>
-</div>
-<div id="notice">
-  <h2>Notice</h2>
-  <div class="notice-body">
-    <h3>커스텀 룰렛 교사 특별 연장 안내</h3>
-    <p>
-      교육 현장에서 마블 룰렛을 사용하시는 교사 분들을 위한 커스텀 룰렛 기간 연장을 상시 지원하고 있습니다.<br />
-      <a href='https://marblerouletteshop.com/news/2' target='_blank'>상세한 내용은 여기를 클릭해 확인하세요.</a>
-    </p>
-  </div>
-  <div class="notice-action">
-    <button id="closeNotice" data-trans>Close</button>
-  </div>
-</div>
-<div class="copyright">&copy; 2022-2026. 마블 룰렛™ by <a href="https://lazygyu.net" target="_blank">lazygyu</a> | <a href="https://marblerouletteshop.com/advertise" target="_blank">광고문의</a>
 </div>
 </body>
 </html>
