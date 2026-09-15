@@ -142,6 +142,19 @@ canvas {
       justify-content: stretch;
       gap: 2px;
 
+      button {
+        width: 140px;
+        height: 44px;
+        flex: 0 1 140px;
+        min-width: 0;
+        padding: 0 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        white-space: nowrap;
+      }
+
       div.sep {
         flex-grow: 1;
       }

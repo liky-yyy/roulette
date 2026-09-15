@@ -1,8 +1,11 @@
+import { parseResultSnapshot, type ResultSnapshot } from './resultSnapshot';
 import { createSeed, installSeededMathRandom, setRandomSeed } from './utils/random';
 
 type RouletteLike = {
   setMarbles(names: string[]): void;
   start(): void;
+  getResultSnapshot(): ResultSnapshot | null;
+  restoreResultSnapshot(snapshot: ResultSnapshot): void;
   getCurrentMap(): { index?: number; title?: string } | null;
   addEventListener(type: string, listener: EventListenerOrEventListenerObject): void;
 };
@@ -56,13 +59,14 @@ function formatKst(timestamp: number) {
   }).format(new Date(timestamp));
 }
 
-function buildShareUrl() {
+function buildShareUrl(snapshot: ResultSnapshot) {
   const url = new URL(location.href);
   url.search = '';
   const createdAt = Date.now();
   url.searchParams.set('seed', currentSeed);
   url.searchParams.set('at', String(createdAt));
   url.searchParams.set('names', namesValue());
+  url.searchParams.set('result', JSON.stringify(snapshot));
 
   const map = document.querySelector<HTMLSelectElement>('#sltMap');
   if (map?.value) url.searchParams.set('map', map.value);
@@ -96,7 +100,7 @@ function lockReplayUi() {
     });
 
   const badge = document.createElement('div');
-  badge.textContent = '공유된 결과 재생 · 설정 변경 불가';
+  badge.textContent = '저장된 전체 순위 · 재추첨 없음';
   Object.assign(badge.style, {
     position: 'fixed',
     top: '10px',
@@ -211,23 +215,37 @@ export function installShareReplay(roulette: RouletteLike) {
       const replayMode = applyUrlSettings();
       if (replayMode) {
         lockReplayUi();
-        setTimeout(() => roulette.start(), 300);
+        try {
+          const raw = initialParams.get('result');
+          if (!raw) throw new Error('Legacy seed-only link');
+          roulette.restoreResultSnapshot(parseResultSnapshot(raw));
+        } catch {
+          alert('이 링크에는 유효한 전체 순위가 없습니다. 룰렛을 다시 실행한 후 새 결과 공유 URL을 생성해 주세요.');
+          const cleanUrl = new URL(location.href);
+          cleanUrl.search = '';
+          const link = document.createElement('a');
+          link.href = cleanUrl.toString();
+          link.textContent = '새 룰렛 열기';
+          Object.assign(link.style, { position: 'fixed', top: '60px', left: '24px', zIndex: '10001' });
+          document.body.appendChild(link);
+        }
         return;
       }
 
       const share = document.createElement('button');
       share.id = 'btnShareReplay';
       share.type = 'button';
-      share.title = '같은 과정과 결과를 1시간 동안 공유';
-      share.innerHTML = '<span>🔗 결과 URL</span>';
+      share.innerHTML = '<span>결과 공유 URL</span>';
       share.disabled = true;
-      share.title = '룰렛 결과가 나온 뒤 공유할 수 있습니다';
+      share.title = '전체 순위가 확정된 뒤 공유할 수 있습니다';
       share.addEventListener('click', async () => {
-        const { url, createdAt } = buildShareUrl();
+        const snapshot = roulette.getResultSnapshot();
+        if (!snapshot) return;
+        const { url, createdAt } = buildShareUrl(snapshot);
         history.replaceState(null, '', url);
         try {
           await navigator.clipboard.writeText(url.toString());
-          toast(`결과 URL 복사 완료 · ${formatKst(createdAt)} KST · 1시간 유효`);
+          toast(`결과 공유 URL 복사 완료 · ${formatKst(createdAt)} KST · 1시간 유효`);
         } catch {
           prompt(`아래 URL을 복사하세요 (${formatKst(createdAt)} KST, 1시간 유효)`, url.toString());
         }
@@ -236,7 +254,7 @@ export function installShareReplay(roulette: RouletteLike) {
 
       const invalidateShare = () => {
         share.disabled = true;
-        share.title = '룰렛 결과가 나온 뒤 공유할 수 있습니다';
+        share.title = '전체 순위가 확정된 뒤 공유할 수 있습니다';
       };
       document.querySelector('#in_names')?.addEventListener('input', invalidateShare);
       document.querySelector('#sltMap')?.addEventListener('change', invalidateShare);
@@ -247,9 +265,9 @@ export function installShareReplay(roulette: RouletteLike) {
         control.addEventListener('click', invalidateShare);
       });
 
-      roulette.addEventListener('goal', () => {
+      roulette.addEventListener('rankingcomplete', () => {
         share.disabled = false;
-        share.title = '방금 실행한 과정과 결과 공유';
+        share.title = '확정된 전체 순위를 그대로 공유';
       });
     };
     wait();

@@ -10,6 +10,7 @@ import options, { type WinnerRange } from './options';
 import { ParticleManager } from './particleManager';
 import { Box2dPhysics } from './physics-box2d';
 import { RankRenderer } from './rankRenderer';
+import { parseResultSnapshot, type ResultSnapshot } from './resultSnapshot';
 import { type AdHit, RouletteRenderer } from './rouletteRenderer';
 import { SkillEffect } from './skillEffect';
 import type { RoundAd } from './types/Ad.type';
@@ -51,6 +52,8 @@ export class Roulette extends EventTarget {
   private _isRunning: boolean = false;
   /** 진행 중에는 null, 당첨자가 모두 확정되면 당첨자 배열 */
   private _result: Marble[] | null = null;
+  private _rankingComplete = false;
+  private _roundStarted = false;
 
   // 구슬 id(= order)는 매 라운드 재사용된다. 리셋 시 취소하지 않으면 이 타이머가
   // 뒤늦게 발화해 같은 id를 가진 새 라운드의 구슬을 지워버린다
@@ -181,6 +184,13 @@ export class Roulette extends EventTarget {
     this._marbles = this._marbles.filter((marble) => marble.y <= stage.goalY);
 
     this._checkFinish();
+    // A winner event can fire at first place; sharing must wait for EVERY rank.
+    if (this._roundStarted && !this._rankingComplete && this._marbles.length <= 1) {
+      this._winners.push(...this._marbles);
+      this._marbles = [];
+      this._rankingComplete = true;
+      this.dispatchEvent(new Event('rankingcomplete'));
+    }
   }
 
   /** 카메라와 슬로우모션이 주목할 구슬 = 당첨 커트라인에 걸쳐있는 구슬 */
@@ -357,6 +367,9 @@ export class Roulette extends EventTarget {
   }
 
   public clearMarbles() {
+    this._roundStarted = false;
+    this._rankingComplete = false;
+    this._isRunning = false;
     this._pendingRemovals.forEach((id) => window.clearTimeout(id));
     this._pendingRemovals = [];
     this.physics.clearMarbles();
@@ -375,6 +388,8 @@ export class Roulette extends EventTarget {
   }
 
   public start() {
+    if (this._marbles.length === 0) return;
+    this._roundStarted = true;
     this._isRunning = true;
     this._winnerRange = clipWinnerRange(options.winnerRange, this._marbles.length);
     this._camera.startFollowingMarbles();
@@ -395,6 +410,25 @@ export class Roulette extends EventTarget {
       throw new Error('Speed multiplier must larger than 0');
     }
     this._speed = value;
+  }
+
+  public getResultSnapshot(): ResultSnapshot | null {
+    if (!this._rankingComplete) return null;
+    return {
+      version: 1,
+      ranking: this._winners.map(({ id, name }) => ({ id, name })),
+      range: { ...this._winnerRange },
+    };
+  }
+
+  public restoreResultSnapshot(snapshot: ResultSnapshot) {
+    const saved = parseResultSnapshot(JSON.stringify(snapshot));
+    this.clearMarbles();
+    this._winners = saved.ranking.map(({ id, name }) => new Marble(this.physics, id, saved.ranking.length, name));
+    this.physics.clearMarbles();
+    this._winnerRange = { ...saved.range };
+    this._result = this._winners.slice(saved.range.start, saved.range.end + 1);
+    this._rankingComplete = true;
   }
 
   public setAd(ad: RoundAd | null) {
