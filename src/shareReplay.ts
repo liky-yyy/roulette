@@ -253,11 +253,18 @@ export function installShareReplay(roulette: RouletteLike) {
       share.id = 'btnShareReplay';
       share.type = 'button';
       share.innerHTML = '<span>결과 공유 URL</span>';
-      share.disabled = true;
-      share.title = '전체 순위가 확정된 뒤 공유할 수 있습니다';
+      let shareReady = false;
+      share.title = '게임이 끝나면 결과 공유 URL이 생성됩니다';
       share.addEventListener('click', async () => {
+        if (!shareReady) {
+          toast('게임을 시작한 뒤 모든 결과가 나오면 공유 URL이 생성됩니다.');
+          return;
+        }
         const snapshot = roulette.getResultSnapshot();
-        if (!snapshot) return;
+        if (!snapshot) {
+          toast('게임을 시작한 뒤 모든 결과가 나오면 공유 URL이 생성됩니다.');
+          return;
+        }
         const { url, createdAt } = buildShareUrl(snapshot);
         history.replaceState(null, '', url);
         try {
@@ -270,8 +277,8 @@ export function installShareReplay(roulette: RouletteLike) {
       actions.insertBefore(share, document.querySelector('#btnStart'));
 
       const invalidateShare = () => {
-        share.disabled = true;
-        share.title = '전체 순위가 확정된 뒤 공유할 수 있습니다';
+        shareReady = false;
+        share.title = '게임이 끝나면 결과 공유 URL이 생성됩니다';
       };
       document.querySelector('#in_names')?.addEventListener('input', invalidateShare);
       document.querySelector('#sltMap')?.addEventListener('change', invalidateShare);
@@ -283,7 +290,7 @@ export function installShareReplay(roulette: RouletteLike) {
       });
 
       roulette.addEventListener('rankingcomplete', () => {
-        share.disabled = false;
+        shareReady = true;
         share.title = '동일한 경기 과정과 전체 순위를 공유';
       });
     };
